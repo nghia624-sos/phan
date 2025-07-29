@@ -62,7 +62,7 @@ HPLabel.TextColor3 = Color3.new(1, 0, 0)
 local function getCityNPC()
 	local closest, dist = nil, math.huge
 	for _, npc in pairs(workspace:GetDescendants()) do
-		if npc:IsA("Model") and npc.Name:lower():find("citynpc") and npc:FindFirstChild("HumanoidRootPart") then
+		if npc:IsA("Model") and npc.Name:lower():find("citynpc") and npc:FindFirstChild("HumanoidRootPart") and npc:FindFirstChild("Humanoid") and npc.Humanoid.Health > 0 then
 			local d = (npc.HumanoidRootPart.Position - HumanoidRootPart.Position).Magnitude
 			if d < dist then
 				dist = d
@@ -77,6 +77,9 @@ end
 ToggleFarm.MouseButton1Click:Connect(function()
 	autoFarm = not autoFarm
 	ToggleFarm.Text = autoFarm and "Đang Vòng" or "Auto Vòng"
+	if autoFarm then
+		currentTarget = getCityNPC()
+	end
 end)
 
 -- Nhập thông số
@@ -94,12 +97,16 @@ SpeedBox.FocusLost:Connect(function()
 	end
 end)
 
--- Vòng tròn + Hiển thị máu
+-- Vòng tròn + Hiển thị máu + Ngắt khi mục tiêu chết
 local angle = 0
 RunService.RenderStepped:Connect(function(dt)
 	if autoFarm then
-		if not currentTarget or not currentTarget:FindFirstChild("HumanoidRootPart") then
-			currentTarget = getCityNPC()
+		if not currentTarget or not currentTarget:FindFirstChild("Humanoid") or currentTarget.Humanoid.Health <= 0 then
+			autoFarm = false
+			ToggleFarm.Text = "Auto Vòng"
+			currentTarget = nil
+			HPLabel.Text = "Máu: ???"
+			return
 		end
 
 		if currentTarget and currentTarget:FindFirstChild("HumanoidRootPart") then
