@@ -372,4 +372,137 @@ lp.CharacterAdded:Connect(function(c)
 	hrp = chr:WaitForChild("HumanoidRootPart")
 end)
 
--- End of script
+       --heal---
+if getgenv().NM_LOADED then
+    warn("Script đã chạy, bỏ qua!")
+    return
+end
+getgenv().NM_LOADED = true
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local PathfindingService = game:GetService("PathfindingService")
+local TweenService = game:GetService("TweenService")
+local UIS = game:GetService("UserInputService")
+local lp = Players.LocalPlayer
+local chr = lp.Character or lp.CharacterAdded:Wait()
+local hum = chr:WaitForChild("Humanoid")
+local hrp = chr:WaitForChild("HumanoidRootPart")
+
+local framBoss = false
+local radius = 10
+local speed = 8
+
+-- ====== Auto Heal Settings ======
+local healThreshold = 60 -- máu ≤ 60 thì heal
+local healCooldown = false
+
+local function getWeapon()
+    for _, tool in pairs(lp.Backpack:GetChildren()) do
+        if tool:IsA("Tool") and not string.find(tool.Name:lower(),"bandage") 
+        and not string.find(tool.Name:lower(),"med") 
+        and not string.find(tool.Name:lower(),"kit") 
+        and not string.find(tool.Name:lower(),"băng") then
+            return tool
+        end
+    end
+    return nil
+end
+
+local function getBandage()
+    for _, tool in pairs(lp.Backpack:GetChildren()) do
+        local name = tool.Name:lower()
+        if name:find("bandage") or name:find("med") or name:find("kit") or name:find("băng") then
+            return tool
+        end
+    end
+    return nil
+end
+
+local function autoHeal()
+    if healCooldown then return end
+    if hum.Health <= healThreshold then
+        local bandage = getBandage()
+        if bandage then
+            healCooldown = true
+            -- Lưu vũ khí hiện tại
+            local currentTool = chr:FindFirstChildOfClass("Tool") or getWeapon()
+            -- Equip băng gạc
+            bandage.Parent = chr
+            task.wait(0.3)
+            hum:EquipTool(bandage)
+            task.wait(3) -- thời gian heal
+            -- Cầm lại vũ khí
+            if currentTool and currentTool.Parent == lp.Backpack then
+                currentTool.Parent = chr
+                hum:EquipTool(currentTool)
+            end
+            task.wait(1)
+            healCooldown = false
+        end
+    end
+end
+
+-- ====== Tìm Boss ======
+local function findBoss()
+    for _, npc in pairs(workspace:GetDescendants()) do
+        if npc:IsA("Model") and npc:FindFirstChild("HumanoidRootPart") and npc:FindFirstChild("Humanoid") then
+            if string.find(npc.Name:lower(),"npc2") then
+                return npc
+            end
+        end
+    end
+    return nil
+end
+
+-- ====== MoveTo Boss ======
+local function moveToTarget(target)
+    local path = PathfindingService:CreatePath()
+    path:ComputeAsync(hrp.Position, target.Position)
+    path:MoveTo(hrp)
+end
+
+-- ====== Chạy vòng quanh ======
+local function circleAround(target)
+    local angle = tick()
+    local pos = target.Position + Vector3.new(math.cos(angle)*radius, 0, math.sin(angle)*radius)
+    TweenService:Create(hrp, TweenInfo.new(1/speed, Enum.EasingStyle.Linear), {CFrame = CFrame.new(pos, target.Position)}):Play()
+end
+
+-- ====== Fram Loop ======
+RunService.Heartbeat:Connect(function()
+    autoHeal()
+    if framBoss then
+        local boss = findBoss()
+        if boss then
+            local dist = (boss.HumanoidRootPart.Position - hrp.Position).Magnitude
+            if dist > radius+3 then
+                hrp.CFrame = hrp.CFrame + (boss.HumanoidRootPart.Position - hrp.Position).Unit * 0.5
+            else
+                circleAround(boss.HumanoidRootPart)
+            end
+        end
+    end
+end)
+
+-- ====== GUI ======
+local ScreenGui = Instance.new("ScreenGui", lp.PlayerGui)
+local Frame = Instance.new("Frame", ScreenGui)
+Frame.Size = UDim2.new(0, 200, 0, 100)
+Frame.Position = UDim2.new(0.3, 0, 0.3, 0)
+Frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+Frame.Active = true
+Frame.Draggable = true
+
+local Btn = Instance.new("TextButton", Frame)
+Btn.Size = UDim2.new(1, 0, 0.5, 0)
+Btn.Text = "Bật/Tắt Fram Boss"
+Btn.MouseButton1Click:Connect(function()
+    framBoss = not framBoss
+    Btn.Text = framBoss and "Fram Boss: ON" or "Fram Boss: OFF"
+end)
+
+local SlidLabel = Instance.new("TextLabel", Frame)
+SlidLabel.Size = UDim2.new(1, 0, 0.5, 0)
+SlidLabel.Position = UDim2.new(0, 0, 0.5, 0)
+SlidLabel.Text = "Auto Heal ≤ " .. healThreshold
